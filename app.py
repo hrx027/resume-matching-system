@@ -3,10 +3,6 @@ import os
 import pandas as pd
 import time
 # Import local modules
-# We need to set HF_HUB_OFFLINE=1 in env if we want to force offline, 
-# but streamlit runs in its own process. We can set it at top of file.
-import os
-os.environ["HF_HUB_OFFLINE"] = "1"
 
 from matching import find_matching_resumes_by_similarity
 

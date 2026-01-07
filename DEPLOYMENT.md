@@ -27,24 +27,16 @@ This guide covers how to deploy the Resume Matching System to **Streamlit Commun
      GROQ_API_KEY = "your-groq-api-key-here"
       GROQ_MODEL = "llama-3.1-8b-instant"
       
-      # Database credentials
-     DB_NAME = "your-db-name"
-     DB_USER = "your-db-user"
-     DB_PASSWORD = "your-db-password"
-     DB_HOST = "your-db-host"
-     DB_PORT = "5432"
-     
-     HF_HUB_OFFLINE = "0" 
-     # Set to "0" to download models on the server. "1" only works if models are pre-cached/uploaded.
-     
-     # Database credentials (if using a cloud DB like Neon or Supabase)
-     # If you use a local SQLite or file-based approach, you might need to adjust code.
-     # Since this app uses PostgreSQL, you MUST provide a cloud Postgres URL.
-     DB_HOST = "your-db-host"
-     DB_NAME = "your-db-name"
-     DB_USER = "your-db-user"
-     DB_PASSWORD = "your-db-password"
-     DB_PORT = "5432"
+      # Database credentials (e.g. from Neon.tech, Supabase, or Render)
+    DB_NAME = "your-db-name"
+    DB_USER = "your-db-user"
+    DB_PASSWORD = "your-db-password"
+    DB_HOST = "your-db-host"
+    DB_PORT = "5432"
+    
+    # Hugging Face Model Setting
+    HF_HUB_OFFLINE = "0" 
+    # Set to "0" to download models on the server. "1" only works if models are pre-cached/uploaded.
      ```
    *Note: The current app uses a local PostgreSQL database. For deployment, you need a cloud PostgreSQL instance (e.g., from Neon.tech, Supabase, or Render).*
 
