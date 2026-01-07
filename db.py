@@ -1,14 +1,18 @@
 import psycopg2
 import json
 import hashlib
+import os
+from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 
+load_dotenv()
+
 DB_CONFIG = {
-    "dbname": "resumes_db",
-    "user": "postgres",
-    "password": "mysecretpassword",
-    "host": "localhost",
-    "port": 5433
+    "dbname": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT")
 }
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -21,6 +25,39 @@ def create_updated_table():
     conn = get_db_connection()
     
     with conn.cursor() as cur:
+        # Enable vector extension
+        cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+
+        # Check if table exists
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'resumes'
+            )
+        """)
+        if not cur.fetchone()[0]:
+            cur.execute("""
+                CREATE TABLE resumes (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT,
+                    location TEXT,
+                    current_job_title TEXT,
+                    preferred_job_title TEXT,
+                    skills TEXT[],
+                    experience JSONB,
+                    education JSONB,
+                    resume_hash TEXT UNIQUE,
+                    skills_embedding vector(384),
+                    experience_embedding vector(384),
+                    education_embedding vector(384),
+                    job_titles_embedding vector(384)
+                )
+            """)
+            print("✓ Created resumes table with all columns")
+            conn.commit()
+            conn.close()
+            return
+
         # Check if inline_resume column exists and remove it
         cur.execute("""
             SELECT column_name 

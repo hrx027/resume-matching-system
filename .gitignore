@@ -1,0 +1,24 @@
+# Environment variables
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Mac
+.DS_Store
+
+# Data
+resumes/
+# You might want to keep an empty resumes folder or gitkeep if the code expects it,
+# but usually user data shouldn't be in git.
+# We'll add a gitkeep if needed, but for now ignoring the folder content is safer.
+
+# Streamlit
+.streamlit/
+
+# Virtual Env
+venv/
+env/

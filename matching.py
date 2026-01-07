@@ -1,17 +1,21 @@
 import psycopg2
 import json
 import numpy as np
+import os
+from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from utils.groq_extractor import extract_structured_info_groq_jd
+from groq_extractor import extract_structured_info_groq_jd
 import ast
 
+load_dotenv()
+
 DB_CONFIG = {
-    "dbname": "resumes_db",
-    "user": "postgres",
-    "password": "mysecretpassword",
-    "host": "localhost",
-    "port": 5433
+    "dbname": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT")
 }
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -173,4 +177,6 @@ def find_matching_resumes_by_similarity(jd_text, top_n=10):
             print(f"Experience: {len(result['experience'])} positions")
         if result['education']:
             print(f"Education: {len(result['education'])} degrees")
+            
+    return top_results
 

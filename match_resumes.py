@@ -1,4 +1,4 @@
-from utils.matching import find_matching_resumes_by_similarity
+from matching import find_matching_resumes_by_similarity
 
 if __name__ == "__main__":
     jd = """

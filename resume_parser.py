@@ -1,8 +1,8 @@
 import os
-from utils.extract_text import extract_text
-from utils.clean_text import clean_text
-from utils.groq_extractor import extract_structured_info_groq
-from utils.db import insert_resume_into_db, get_db_connection
+from extract_text import extract_text
+from clean_text import clean_text
+from groq_extractor import extract_structured_info_groq
+from db import insert_resume_into_db, get_db_connection
 
 RESUME_FOLDER = "./resumes"
 

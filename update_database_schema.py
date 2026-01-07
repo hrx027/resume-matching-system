@@ -1,8 +1,8 @@
 import os
-from utils.db import create_updated_table, get_db_connection
-from utils.extract_text import extract_text
-from utils.clean_text import clean_text
-from utils.groq_extractor import extract_structured_info_groq
+from db import create_updated_table, get_db_connection
+from extract_text import extract_text
+from clean_text import clean_text
+from groq_extractor import extract_structured_info_groq
 import psycopg2
 import json
 

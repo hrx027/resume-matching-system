@@ -3,8 +3,13 @@ import json
 import re
 import time
 
-GROQ_API_KEY = "yahan pe key daalni h"
-GROQ_MODEL = "llama3-8b-8192"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
 PROMPT_TEMPLATE = """
 You are an expert resume parser.
@@ -99,7 +104,7 @@ def extract_structured_info_groq(text):
     user_prompt = {"role": "user", "content": text[:4000]}  # Truncate for token limit
 
     payload = {
-        "model": "llama3-8b-8192",
+        "model": GROQ_MODEL,
         "messages": [system_prompt, user_prompt],
         "temperature": 0.2
     }
@@ -160,7 +165,7 @@ def extract_structured_info_groq_jd(jd_text):
     user_prompt = {"role": "user", "content": jd_text[:4000]}
 
     payload = {
-        "model": "llama3-8b-8192",
+        "model": GROQ_MODEL,
         "messages": [system_prompt, user_prompt],
         "temperature": 0.2
     }
