@@ -6,11 +6,15 @@ from db import insert_resume_into_db, get_db_connection
 
 RESUME_FOLDER = "./resumes"
 
-def process_all_resumes():
-    conn = get_db_connection()
+def process_all_resumes(conn, resume_folder=RESUME_FOLDER):
+    # conn is passed from the caller (app.py) which manages the session connection
+    
+    if not os.path.exists(resume_folder):
+        print(f"Folder {resume_folder} does not exist.")
+        return
 
-    for file in os.listdir(RESUME_FOLDER):
-        path = os.path.join(RESUME_FOLDER, file)
+    for file in os.listdir(resume_folder):
+        path = os.path.join(resume_folder, file)
         if not os.path.isfile(path) or not file.lower().endswith(('.pdf', '.docx', '.doc')):
             continue
 
@@ -27,7 +31,11 @@ def process_all_resumes():
         else:
             print(f"✗ Skipped {file} due to extraction failure.")
 
-    conn.close()
+    # Connection is managed by the caller, do not close it here
 
 if __name__ == "__main__":
-    process_all_resumes()
+    from db import create_updated_table
+    # For standalone testing, create a temp connection
+    conn = create_updated_table()
+    process_all_resumes(conn)
+    conn.close()

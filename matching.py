@@ -1,4 +1,3 @@
-import psycopg2
 import json
 import numpy as np
 import os
@@ -9,14 +8,6 @@ from groq_extractor import extract_structured_info_groq_jd
 import ast
 
 load_dotenv()
-
-DB_CONFIG = {
-    "dbname": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT")
-}
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
@@ -106,27 +97,27 @@ def parse_embedding(emb):
             return np.array([])
     return np.array([])
 
-def find_matching_resumes_by_similarity(jd_text, top_n=10):
-    """Find matching resumes based purely on weighted cosine similarities"""
+def find_matching_resumes_by_similarity(jd_text, conn, top_n=10):
+    """Find matching resumes based purely on weighted cosine similarities.
+    Requires an active database connection (conn) to access the temporary session table.
+    """
     jd_embeddings = create_jd_section_embeddings(jd_text)
 
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
+    # Use the passed connection which contains the TEMP table
+    with conn.cursor() as cur:
+        # Get all resumes with their section-wise embeddings
+        cur.execute("""
+            SELECT id, name, current_job_title, preferred_job_title, skills, 
+                   experience, education, location, skills_embedding, experience_embedding,
+                   education_embedding, job_titles_embedding
+            FROM resumes
+        """)
 
-    # Get all resumes with their section-wise embeddings
-    cur.execute("""
-        SELECT id, name, current_job_title, preferred_job_title, skills, 
-               experience, education, location, skills_embedding, experience_embedding,
-               education_embedding, job_titles_embedding
-        FROM resumes
-    """)
-
-    results = cur.fetchall()
-    conn.close()
+        results = cur.fetchall()
 
     if not results:
         print("No matches found for your filters.")
-        return
+        return []
 
     # Calculate weighted similarities for each resume using stored embeddings
     resume_scores = []
@@ -179,4 +170,3 @@ def find_matching_resumes_by_similarity(jd_text, top_n=10):
             print(f"Education: {len(result['education'])} degrees")
             
     return top_results
-

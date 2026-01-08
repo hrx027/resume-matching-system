@@ -1,6 +1,15 @@
 from matching import find_matching_resumes_by_similarity
+from db import create_updated_table
+from resume_parser import process_all_resumes
 
 if __name__ == "__main__":
+    # Initialize ephemeral DB and populate with resumes
+    print("Initializing ephemeral database...")
+    conn = create_updated_table()
+    
+    print("Populating resumes...")
+    process_all_resumes(conn)
+    
     jd = """
     Job Description: Machine Learning Engineer (NLP Focus)
     Position: Machine Learning Engineer
@@ -29,7 +38,11 @@ if __name__ == "__main__":
 
     Bonus: Experience with cloud services (AWS/GCP), FastAPI, or vector databases (e.g., Pinecone, pgvector).
     """
+    
+    print("\nRunning search...")
     find_matching_resumes_by_similarity(
         jd_text=jd,
+        conn=conn,
         top_n=3
     )
+    conn.close()

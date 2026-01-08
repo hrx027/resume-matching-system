@@ -59,20 +59,18 @@ This guide covers how to deploy the Resume Matching System to **Streamlit Commun
    - Add the following env vars:
      - `PYTHON_VERSION`: `3.9` (or match your local version)
      - `HF_HUB_OFFLINE`: `0`
-     - `DB_HOST`, `DB_USER`, etc. (Use the details from the Postgres DB you created).
+     - `DATABASE_URL`: Your full PostgreSQL connection string (e.g. `postgresql://user:pass@host:port/dbname`)
 
 ## Important Note on Database
-The code currently defaults to `localhost`. You need to modify `db.py` to read from environment variables for production.
+The code now uses `DATABASE_URL` for connection. You must provide this environment variable.
 
-**Recommended change for `db.py`:**
+**`db.py` uses:**
 ```python
-import os
-
-DB_CONFIG = {
-    "dbname": os.getenv("DB_NAME", "resumes_db"),
-    "user": os.getenv("DB_USER", "resume_user"),
-    "password": os.getenv("DB_PASSWORD", "hrx1234"),
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": os.getenv("DB_PORT", "5432")
-}
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    try:
+        import streamlit as st
+        DATABASE_URL = st.secrets.get("DATABASE_URL")
+    except:
+        pass
 ```

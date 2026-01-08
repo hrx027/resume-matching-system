@@ -7,141 +7,56 @@ from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
-DB_CONFIG = {
-    "dbname": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT")
-}
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    try:
+        import streamlit as st
+        DATABASE_URL = st.secrets.get("DATABASE_URL")
+    except (ImportError, FileNotFoundError):
+        pass
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def get_db_connection():
-    return psycopg2.connect(**DB_CONFIG)
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is not set")
+    return psycopg2.connect(DATABASE_URL)
 
 def create_updated_table():
-    """Create or update the resumes table with section-wise embeddings and remove old columns"""
+    """Create a temporary resumes table with section-wise embeddings"""
     conn = get_db_connection()
-    
     with conn.cursor() as cur:
-        # Enable vector extension
+        # Enable vector extension (requires superuser or db owner privileges usually)
         cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
-        # Check if table exists
+        # Create temporary table that persists for the session (connection)
         cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = 'resumes'
-            )
+        CREATE TEMP TABLE IF NOT EXISTS resumes (
+            id SERIAL,
+            name TEXT,
+            location TEXT,
+            current_job_title TEXT,
+            preferred_job_title TEXT,
+            skills TEXT[],
+            experience JSONB,
+            education JSONB,
+            resume_hash TEXT,
+            skills_embedding vector(384),
+            experience_embedding vector(384),
+            education_embedding vector(384),
+            job_titles_embedding vector(384)
+        ) ON COMMIT PRESERVE ROWS;
         """)
-        if not cur.fetchone()[0]:
-            cur.execute("""
-                CREATE TABLE resumes (
-                    id SERIAL PRIMARY KEY,
-                    name TEXT,
-                    location TEXT,
-                    current_job_title TEXT,
-                    preferred_job_title TEXT,
-                    skills TEXT[],
-                    experience JSONB,
-                    education JSONB,
-                    resume_hash TEXT UNIQUE,
-                    skills_embedding vector(384),
-                    experience_embedding vector(384),
-                    education_embedding vector(384),
-                    job_titles_embedding vector(384)
-                )
-            """)
-            print("✓ Created resumes table with all columns")
-            conn.commit()
-            conn.close()
-            return
-
-        # Check if inline_resume column exists and remove it
-        cur.execute("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'resumes' 
-            AND column_name = 'inline_resume'
-        """)
-        if cur.fetchone():
-            cur.execute("ALTER TABLE resumes DROP COLUMN inline_resume")
-            print("✓ Removed inline_resume column")
-        
-        # Check if old embedding column exists and remove it
-        cur.execute("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'resumes' 
-            AND column_name = 'embedding'
-        """)
-        if cur.fetchone():
-            cur.execute("ALTER TABLE resumes DROP COLUMN embedding")
-            print("✓ Removed embedding column")
-        
-        # Check if resume_hash column exists, if not add it
-        cur.execute("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'resumes' 
-            AND column_name = 'resume_hash'
-        """)
-        if not cur.fetchone():
-            cur.execute("ALTER TABLE resumes ADD COLUMN resume_hash TEXT UNIQUE")
-            print("✓ Added resume_hash column")
-        
-        # Check if experience and education columns exist
-        cur.execute("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'resumes' 
-            AND column_name IN ('experience', 'education')
-        """)
-        existing_columns = [row[0] for row in cur.fetchall()]
-        
-        # Add experience column if it doesn't exist
-        if 'experience' not in existing_columns:
-            cur.execute("ALTER TABLE resumes ADD COLUMN experience JSONB")
-            print("✓ Added experience column")
-        
-        # Add education column if it doesn't exist
-        if 'education' not in existing_columns:
-            cur.execute("ALTER TABLE resumes ADD COLUMN education JSONB")
-            print("✓ Added education column")
-        
-        # Add section-wise embedding columns
-        embedding_columns = ['skills_embedding', 'experience_embedding', 'education_embedding', 'job_titles_embedding']
-        for col in embedding_columns:
-            cur.execute(f"""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'resumes' 
-                AND column_name = '{col}'
-            """)
-            if not cur.fetchone():
-                cur.execute(f"ALTER TABLE resumes ADD COLUMN {col} vector(384)")
-                print(f"✓ Added {col} column")
-    
     conn.commit()
-    conn.close()
+    # Return the connection so it can be kept open to maintain the TEMP table
+    return conn
 
 def insert_resume_into_db(conn, structured_info):
     # Create a unique hash for the resume based on its content
     resume_content = json.dumps(structured_info, sort_keys=True)
     resume_hash = hashlib.md5(resume_content.encode()).hexdigest()
     
-    # Check if resume already exists using the hash
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT id FROM resumes 
-            WHERE resume_hash = %s
-        """, (resume_hash,))
-        
-        existing_resume = cur.fetchone()
-        if existing_resume:
-            print(f"⚠️ Resume with hash {resume_hash[:8]}... already exists. Skipping.")
-            return False
+    # Removed duplicate checking logic as requested for ephemeral session storage
     
     # Create section-wise embeddings from structured info
     embeddings = {}
