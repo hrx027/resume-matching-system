@@ -25,20 +25,17 @@ This guide covers how to deploy the Resume Matching System to **Streamlit Commun
    -# Add your secrets in TOML format:
      ```toml
      GROQ_API_KEY = "your-groq-api-key-here"
-      GROQ_MODEL = "llama-3.1-8b-instant"
-      
-      # Database credentials (e.g. from Neon.tech, Supabase, or Render)
-    DB_NAME = "your-db-name"
-    DB_USER = "your-db-user"
-    DB_PASSWORD = "your-db-password"
-    DB_HOST = "your-db-host"
-    DB_PORT = "5432"
-    
-    # Hugging Face Model Setting
-    HF_HUB_OFFLINE = "0" 
-    # Set to "0" to download models on the server. "1" only works if models are pre-cached/uploaded.
+     GROQ_MODEL = "llama-3.1-8b-instant"
+     
+     # Cloud PostgreSQL Connection String (e.g. from Supabase, Neon, Render)
+     # Ensure you use the 'Transaction' pooler URL if using Supabase (port 6543) or Session pooler (port 5432)
+     # Must start with postgres:// or postgresql://
+     DATABASE_URL = "postgresql://user:password@host:port/dbname?sslmode=require"
+     
+     # Hugging Face Model Setting
+     HF_HUB_OFFLINE = "0" 
      ```
-   *Note: The current app uses a local PostgreSQL database. For deployment, you need a cloud PostgreSQL instance (e.g., from Neon.tech, Supabase, or Render).*
+     *Note: You need a cloud PostgreSQL instance (e.g., from Neon.tech, Supabase, or Render).*
 
 4. **Deploy**
    - Click "Deploy". Streamlit will install dependencies from `requirements.txt` and start the app.
