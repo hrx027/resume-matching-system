@@ -18,14 +18,9 @@ if not DATABASE_URL:
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def get_db_connection():
-    if not DATABASE_URL:
-        raise ValueError("DATABASE_URL environment variable is not set")
-    
-    try:
-        return psycopg2.connect(DATABASE_URL, sslmode='require')
-    except psycopg2.OperationalError:
-        # Fallback for local databases or if sslmode is already in the URL
-        return psycopg2.connect(DATABASE_URL)
+    if "DATABASE_URL" not in os.environ:
+        raise RuntimeError("DATABASE_URL not found in environment variables.")
+    return psycopg2.connect(os.environ["DATABASE_URL"], sslmode="require")
 
 def create_updated_table():
     """Create a temporary resumes table with section-wise embeddings"""
