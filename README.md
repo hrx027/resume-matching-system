@@ -1,6 +1,6 @@
 # Resume Matching System
 
-A comprehensive AI-powered resume matching system that automatically parses resumes, extracts structured information using Large Language Models (LLMs), and matches candidates to job descriptions using semantic similarity and weighted scoring algorithms.
+A Streamlit app that parses multiple resumes, extracts structured data using Groq LLMs, and ranks candidates against a job description using section-wise embeddings and weighted cosine similarity.
 
 ## 🎯 Project Overview
 
@@ -8,9 +8,9 @@ This system addresses the critical challenge of efficiently matching job candida
 
 - **Document Processing**: Extracts text from PDF and DOCX resume files
 - **AI-Powered Parsing**: Uses Groq's LLM API to extract structured information from unstructured resume text
-- **Semantic Matching**: Employs sentence transformers and cosine similarity for intelligent candidate-job matching
+- **Semantic Matching**: Employs Sentence Transformers and cosine similarity for intelligent candidate-job matching
 - **Section-Wise Analysis**: Implements weighted scoring across multiple resume sections (skills, experience, education, job titles)
-- **Database Management**: Stores resumes in PostgreSQL with vector embeddings for efficient similarity search
+- **Ephemeral Storage**: Stores resumes in a temporary SQLite database that is deleted when the app stops
 - **Streamlit Frontend**: A modern web interface for uploading resumes and finding matches
 
 ## 🏗️ Architecture & Design Decisions
@@ -18,8 +18,8 @@ This system addresses the critical challenge of efficiently matching job candida
 ### Technology Stack
 
 - **Language**: Python 3.x
-- **Database**: PostgreSQL with pgvector extension for vector similarity search
-- **LLM Integration**: Groq API (Llama3-8b-8192) for structured information extraction
+- **Database**: SQLite (temporary file in system temp directory)
+- **LLM Integration**: Groq API for structured information extraction
 - **Embeddings**: SentenceTransformer (`all-MiniLM-L6-v2`) for generating 384-dimensional embeddings
 - **Text Processing**: `pdfplumber` for PDF extraction, `python-docx` for DOCX files
 - **Similarity Calculation**: Scikit-learn's cosine similarity with custom weighted scoring
@@ -46,7 +46,7 @@ This system addresses the critical challenge of efficiently matching job candida
    - More accurate extraction of structured data
    - Natural language understanding for ambiguous fields
 
-4. **Duplicate Prevention**: Implements MD5 hashing of resume content to prevent duplicate entries in the database.
+4. **Ephemeral By Default**: Resume data exists only while the app is running. When Streamlit stops/restarts, the temporary DB is removed.
 
 ## 📁 Project Structure
 
@@ -60,10 +60,9 @@ resume-matching-system/
 ├── match_resumes.py           # Main script for finding matching resumes
 ├── matching.py                # Core matching algorithm with weighted similarity
 ├── resume_parser.py           # Batch resume processing pipeline
-├── update_database_schema.py  # Database migration and schema updates
 ├── app.py                     # Streamlit web application
 ├── requirements.txt           # Python dependencies
-├── .env                       # Environment variables
+├── .env                       # Local-only environment variables (not committed)
 └── DEPLOYMENT.md              # Deployment guide
 ```
 
@@ -72,8 +71,7 @@ resume-matching-system/
 ### Prerequisites
 
 1. **Python 3.9+**
-2. **PostgreSQL** with `pgvector` extension installed
-3. **Groq API Key** (Sign up at https://groq.com)
+2. **Groq API Key** (Sign up at https://groq.com)
 
 ### Step 1: Clone the Repository
 
@@ -97,54 +95,31 @@ pip3 install -r requirements.txt
 
 ### Step 4: Configure Environment Variables
 
-Create a `.env` file in the root directory and add your configuration:
+Create a `.env` file in the root directory and add your configuration (this file is ignored by git):
 
 ```bash
 GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=llama-3.1-8b-instant
-DB_NAME=resumes_db
-DB_USER=resume_user
-DB_PASSWORD=your_password
-DB_HOST=localhost
-DB_PORT=5432
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
-### Step 5: Setup Database
-
-Ensure PostgreSQL is running and your user has permissions to create databases.
-
-```bash
-# Initialize the database schema (Not needed for ephemeral mode, but good to check connection)
-# python resume_parser.py
-```
+No external database setup is required. The app uses a temporary SQLite database that is created automatically.
 
 ## 💻 Usage
 
-### Option 1: Run the Web App (Recommended)
+### Run the Web App (Recommended)
 
 Start the Streamlit interface to upload resumes and match them interactively.
 
 ```bash
-streamlit run app.py
+python3 -m streamlit run app.py
 ```
-Open your browser at `http://localhost:8501`.
+Open your browser at `http://localhost:8501` (or the next available port if 8501 is in use).
 
-### Option 2: CLI Batch Processing
+## 🔒 Data & Privacy
 
-**1. Process Resumes from Folder:**
-Place your resume files (PDF or DOCX) in a `./resumes` folder, then run:
-
-```bash
-python resume_parser.py
-```
-This will extract text, parse information using LLM, generate embeddings, and store them in the database.
-
-**2. Find Matching Candidates:**
-Run the matching script to find best candidates for a job description.
-
-```bash
-python match_resumes.py
-```
+- Resume data is stored only while the app is running.
+- When the Streamlit process stops/restarts, the temporary database file is deleted.
+- Do not commit `.env` to git. Add secrets in Streamlit Cloud “Secrets” when deploying.
 
 ## 🧪 Testing
 
@@ -189,4 +164,4 @@ This project demonstrates:
 ---
 
 **Built for**: Efficient candidate-job matching in recruitment workflows  
-**Technologies**: Python, PostgreSQL, LLMs, Sentence Transformers, Vector Similarity Search, Streamlit
+**Technologies**: Python, SQLite (ephemeral), Groq LLMs, Sentence Transformers, Cosine Similarity, Streamlit

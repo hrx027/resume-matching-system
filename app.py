@@ -121,22 +121,10 @@ st.markdown(f"""
 
 # Sidebar
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3850/3850285.png", width=50)
     st.title("Resume Matcher")
     
-    # Theme Toggle
-    st.button(
-        "🌓 Toggle Theme", 
-        on_click=toggle_theme,
-        help="Switch between Dark and Light mode"
-    )
-    
-    st.markdown("---")
-    
-    st.header("⚙️ Settings")
-    top_n = st.number_input("Max Matches", min_value=1, max_value=200, value=5, step=1)
-    
-    st.header("📂 Upload Resumes")
+    # 1. Browse/Upload Section (Moved to Top)
+    st.markdown("### <i class='fa-solid fa-file-arrow-up'></i> Upload Resumes", unsafe_allow_html=True)
     uploaded_files = st.file_uploader(
         "Drop PDF/DOCX files here", 
         accept_multiple_files=True, 
@@ -144,7 +132,7 @@ with st.sidebar:
     )
     
     if uploaded_files:
-        if st.button("🚀 Process Uploaded Files", type="primary"):
+        if st.button("Process Files", type="primary"):
             progress_bar = st.progress(0)
             status_text = st.empty()
             
@@ -176,15 +164,27 @@ with st.sidebar:
 
     st.markdown("---")
     
+    # 2. Settings Section
+    st.markdown("### <i class='fa-solid fa-sliders'></i> Settings", unsafe_allow_html=True)
+    top_n = st.number_input("Max Matches", min_value=1, max_value=200, value=5, step=1)
+    
+    st.markdown("---")
+
+    # 3. Theme Toggle (Moved to Bottom)
+    st.button(
+        "Toggle Theme", 
+        on_click=toggle_theme,
+        help="Switch between Dark and Light mode"
+    )
 
 # Main Content
-st.title("🚀 Smart Resume Screening")
+st.title("Smart Resume Screening")
 st.markdown("### Find the perfect candidate in seconds using AI.")
 
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.subheader("📝 Job Description")
+    st.markdown("### <i class='fa-solid fa-file-lines'></i> Job Description", unsafe_allow_html=True)
     default_jd = """We are looking for a Senior Machine Learning Engineer with experience in:
 - Natural Language Processing (NLP) and LLMs
 - Python, PyTorch, and TensorFlow
@@ -199,13 +199,13 @@ with col1:
     )
 
 with col2:
-    st.subheader("🎯 Matching Controls")
+    st.markdown("### <i class='fa-solid fa-filter'></i> Matching Controls", unsafe_allow_html=True)
     st.markdown("""
     Click the button below to analyze all indexed resumes against the provided job description.
     
     The system uses **semantic search** to find candidates who match the *meaning* of the requirements, not just keywords.
     """)
-    if st.button("🔍 Find Top Matches", type="primary"):
+    if st.button("Find Top Matches", type="primary"):
         run_search = True
     else:
         run_search = False
@@ -226,7 +226,7 @@ if run_search:
                 if not results:
                     st.warning("No matches found. Try uploading some resumes first!")
                 else:
-                    st.success(f"🎉 Found {len(results)} matches!")
+                    st.success(f"Found {len(results)} matches")
                     
                     for i, res in enumerate(results, 1):
                         score = res['similarity_score']
