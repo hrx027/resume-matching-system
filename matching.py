@@ -85,88 +85,69 @@ def create_jd_section_embeddings(jd_text):
     embeddings['job_titles'] = model.encode(job_titles_text.strip())
     return embeddings
 
-def parse_embedding(emb):
-    if emb is None:
-        return np.array([])
-    if isinstance(emb, list) or isinstance(emb, np.ndarray):
-        return np.array(emb)
-    if isinstance(emb, str):
-        try:
-            return np.array(ast.literal_eval(emb))
-        except Exception:
-            return np.array([])
-    return np.array([])
+def parse_embedding(emb_blob):
+    """Convert BLOB back to numpy array"""
+    if emb_blob is None:
+        return np.zeros(384, dtype=np.float32)
+    return np.frombuffer(emb_blob, dtype=np.float32)
 
 def find_matching_resumes_by_similarity(jd_text, conn, top_n=10):
-    """Find matching resumes based purely on weighted cosine similarities.
-    Requires an active database connection (conn) to access the temporary session table.
     """
+    Find matching resumes using in-memory cosine similarity on SQLite data.
+    """
+    # 1. Generate Embeddings for the JD
     jd_embeddings = create_jd_section_embeddings(jd_text)
-
-    # Use the passed connection which contains the TEMP table
-    with conn.cursor() as cur:
-        # Get all resumes with their section-wise embeddings
-        cur.execute("""
-            SELECT id, name, current_job_title, preferred_job_title, skills, 
-                   experience, education, location, skills_embedding, experience_embedding,
-                   education_embedding, job_titles_embedding
-            FROM resumes
-        """)
-
-        results = cur.fetchall()
-
-    if not results:
-        print("No matches found for your filters.")
-        return []
-
-    # Calculate weighted similarities for each resume using stored embeddings
-    resume_scores = []
     
-    for row in results:
-        resume_id, name, current_job_title, preferred_job_title, skills, experience, education, location, skills_emb, experience_emb, education_emb, job_titles_emb = row
+    # 2. Fetch all resumes from SQLite
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, name, location, current_job_title, preferred_job_title, 
+               skills, experience, education,
+               skills_embedding, experience_embedding, education_embedding, job_titles_embedding
+        FROM resumes
+    """)
+    rows = cur.fetchall()
+    
+    if not rows:
+        return []
         
-        # Use stored embeddings instead of computing them
+    scored_resumes = []
+    
+    for row in rows:
+        # Unpack row
+        r_id, name, location, cur_title, pref_title, skills_json, exp_json, edu_json, skills_blob, exp_blob, edu_blob, titles_blob = row
+
+        # Deserialize JSON fields
+        try:
+            skills = json.loads(skills_json) if skills_json else []
+            experience = json.loads(exp_json) if exp_json else []
+            education = json.loads(edu_json) if edu_json else []
+        except json.JSONDecodeError:
+            skills, experience, education = [], [], []
+
+        # Parse Embeddings
         resume_embeddings = {
-            'skills': parse_embedding(skills_emb),
-            'experience': parse_embedding(experience_emb),
-            'education': parse_embedding(education_emb),
-            'job_titles': parse_embedding(job_titles_emb)
+            'skills': parse_embedding(skills_blob),
+            'experience': parse_embedding(exp_blob),
+            'education': parse_embedding(edu_blob),
+            'job_titles': parse_embedding(titles_blob)
         }
         
-        # Calculate weighted similarity
-        weighted_similarity = calculate_weighted_similarity(jd_embeddings, resume_embeddings)
+        # Calculate Similarity
+        score = calculate_weighted_similarity(jd_embeddings, resume_embeddings)
         
-        resume_scores.append({
-            'id': resume_id,
-            'name': name,
-            'current_job_title': current_job_title,
-            'preferred_job_title': preferred_job_title,
-            'skills': skills,
-            'experience': experience,
-            'education': education,
-            'location': location,
-            'similarity_score': weighted_similarity
+        scored_resumes.append({
+            "id": r_id,
+            "name": name,
+            "location": location,
+            "current_job_title": cur_title,
+            "skills": skills,
+            "experience": experience,
+            "education": education,
+            "similarity_score": float(score)
         })
-    
-    # Sort by similarity score (higher is better)
-    resume_scores.sort(key=lambda x: x['similarity_score'], reverse=True)
-    
-    # Return top N results
-    top_results = resume_scores[:top_n]
-    
-    for i, result in enumerate(top_results, start=1):
-        print(f"\n🔹 Match #{i}")
-        print(f"Name: {result['name']}")
-        print(f"Current Title: {result['current_job_title']}")
-        print(f"Preferred Title: {result['preferred_job_title']}")
-        print(f"Location: {result['location']}")
-        print(f"Skills: {result['skills']}")
-        print(f"Weighted Similarity Score: {result['similarity_score']:.4f}")
         
-        # Show section breakdown
-        if result['experience']:
-            print(f"Experience: {len(result['experience'])} positions")
-        if result['education']:
-            print(f"Education: {len(result['education'])} degrees")
-            
-    return top_results
+    # 3. Sort by score descending
+    scored_resumes.sort(key=lambda x: x['similarity_score'], reverse=True)
+    
+    return scored_resumes[:top_n]

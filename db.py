@@ -1,62 +1,64 @@
-import psycopg2
+import sqlite3
 import json
 import hashlib
 import os
-from dotenv import load_dotenv
+import tempfile
+import atexit
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
-load_dotenv()
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    try:
-        import streamlit as st
-        DATABASE_URL = st.secrets.get("DATABASE_URL")
-    except (ImportError, FileNotFoundError):
-        pass
-
+# Initialize Embedding Model
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
+# Temporary Database File
+_temp_db_file = os.path.join(tempfile.gettempdir(), "runtime_resume_db.sqlite")
+
 def get_db_connection():
-    if "DATABASE_URL" not in os.environ:
-        raise RuntimeError("DATABASE_URL not found in environment variables.")
-    return psycopg2.connect(os.environ["DATABASE_URL"], sslmode="require")
-
-def create_updated_table():
-    """Create a temporary resumes table with section-wise embeddings"""
-    conn = get_db_connection()
-    with conn.cursor() as cur:
-        # Enable vector extension (requires superuser or db owner privileges usually)
-        cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
-
-        # Create temporary table that persists for the session (connection)
-        cur.execute("""
-        CREATE TEMP TABLE IF NOT EXISTS resumes (
-            id SERIAL,
-            name TEXT,
-            location TEXT,
-            current_job_title TEXT,
-            preferred_job_title TEXT,
-            skills TEXT[],
-            experience JSONB,
-            education JSONB,
-            resume_hash TEXT,
-            skills_embedding vector(384),
-            experience_embedding vector(384),
-            education_embedding vector(384),
-            job_titles_embedding vector(384)
-        ) ON COMMIT PRESERVE ROWS;
-        """)
-    conn.commit()
-    # Return the connection so it can be kept open to maintain the TEMP table
+    """Get a connection to the SQLite database"""
+    conn = sqlite3.connect(_temp_db_file, check_same_thread=False)
+    conn.row_factory = sqlite3.Row  # Enable accessing columns by name
     return conn
+
+def init_db():
+    """Initialize the database schema"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS resumes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        location TEXT,
+        current_job_title TEXT,
+        preferred_job_title TEXT,
+        skills TEXT,          -- Stored as JSON string
+        experience TEXT,      -- Stored as JSON string
+        education TEXT,       -- Stored as JSON string
+        resume_hash TEXT,
+        skills_embedding BLOB,
+        experience_embedding BLOB,
+        education_embedding BLOB,
+        job_titles_embedding BLOB
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+def cleanup():
+    """Remove the temporary database file on exit"""
+    if os.path.exists(_temp_db_file):
+        try:
+            os.remove(_temp_db_file)
+        except OSError:
+            pass
+
+atexit.register(cleanup)
 
 def insert_resume_into_db(conn, structured_info):
     # Create a unique hash for the resume based on its content
     resume_content = json.dumps(structured_info, sort_keys=True)
     resume_hash = hashlib.md5(resume_content.encode()).hexdigest()
-    
-    # Removed duplicate checking logic as requested for ephemeral session storage
     
     # Create section-wise embeddings from structured info
     embeddings = {}
@@ -64,9 +66,9 @@ def insert_resume_into_db(conn, structured_info):
     # Skills embedding
     if structured_info.get("skills"):
         skills_text = ", ".join(structured_info["skills"])
-        embeddings['skills'] = model.encode(skills_text).tolist()
+        embeddings['skills'] = model.encode(skills_text).astype(np.float32).tobytes()
     else:
-        embeddings['skills'] = model.encode("").tolist()
+        embeddings['skills'] = model.encode("").astype(np.float32).tobytes()
     
     # Experience embedding
     if structured_info.get("experience"):
@@ -74,9 +76,9 @@ def insert_resume_into_db(conn, structured_info):
         for exp in structured_info["experience"]:
             exp_text = f"{exp.get('title', '')} at {exp.get('company', '')} - {exp.get('description', '')}"
             experience_text += exp_text + " "
-        embeddings['experience'] = model.encode(experience_text.strip()).tolist()
+        embeddings['experience'] = model.encode(experience_text.strip()).astype(np.float32).tobytes()
     else:
-        embeddings['experience'] = model.encode("").tolist()
+        embeddings['experience'] = model.encode("").astype(np.float32).tobytes()
     
     # Education embedding
     if structured_info.get("education"):
@@ -84,9 +86,9 @@ def insert_resume_into_db(conn, structured_info):
         for edu in structured_info["education"]:
             edu_text = f"{edu.get('degree', '')} in {edu.get('field', '')} from {edu.get('institution', '')}"
             education_text += edu_text + " "
-        embeddings['education'] = model.encode(education_text.strip()).tolist()
+        embeddings['education'] = model.encode(education_text.strip()).astype(np.float32).tobytes()
     else:
-        embeddings['education'] = model.encode("").tolist()
+        embeddings['education'] = model.encode("").astype(np.float32).tobytes()
     
     # Job titles embedding
     job_titles_text = ""
@@ -94,32 +96,33 @@ def insert_resume_into_db(conn, structured_info):
         job_titles_text += structured_info["current_job_title"] + " "
     if structured_info.get("preferred_job_title"):
         job_titles_text += structured_info["preferred_job_title"] + " "
-    embeddings['job_titles'] = model.encode(job_titles_text.strip()).tolist()
+    embeddings['job_titles'] = model.encode(job_titles_text.strip()).astype(np.float32).tobytes()
 
-    with conn.cursor() as cur:
-        skills_array = structured_info.get("skills") or []
-        experience_data = json.dumps(structured_info.get("experience") or [])
-        education_data = json.dumps(structured_info.get("education") or [])
+    # Prepare data for insertion
+    # Arrays/JSON objects must be serialized to strings for SQLite
+    skills_json = json.dumps(structured_info.get("skills", []))
+    experience_json = json.dumps(structured_info.get("experience", []))
+    education_json = json.dumps(structured_info.get("education", []))
 
-        cur.execute("""
-            INSERT INTO resumes (
-                name, location, current_job_title, preferred_job_title, 
-                skills, experience, education, resume_hash, skills_embedding, experience_embedding, 
-                education_embedding, job_titles_embedding
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            structured_info.get("name"),
-            structured_info.get("location"),
-            structured_info.get("current_job_title"),
-            structured_info.get("preferred_job_title"),
-            skills_array,
-            experience_data,
-            education_data,
-            resume_hash,
-            embeddings['skills'],
-            embeddings['experience'],
-            embeddings['education'],
-            embeddings['job_titles']
-        ))
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO resumes (
+            name, location, current_job_title, preferred_job_title, 
+            skills, experience, education, resume_hash,
+            skills_embedding, experience_embedding, education_embedding, job_titles_embedding
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        structured_info.get("name"),
+        structured_info.get("location"),
+        structured_info.get("current_job_title"),
+        structured_info.get("preferred_job_title"),
+        skills_json,
+        experience_json,
+        education_json,
+        resume_hash,
+        embeddings['skills'],
+        embeddings['experience'],
+        embeddings['education'],
+        embeddings['job_titles']
+    ))
     conn.commit()
-    return True

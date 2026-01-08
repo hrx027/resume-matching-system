@@ -7,7 +7,7 @@ import shutil
 # Import local modules
 
 from matching import find_matching_resumes_by_similarity
-from db import create_updated_table
+from db import init_db, get_db_connection
 
 # Page Config
 st.set_page_config(
@@ -17,9 +17,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Session State for DB Connection
-if 'db_conn' not in st.session_state:
-    st.session_state.db_conn = create_updated_table()
+# Initialize Database on Startup
+if "db_ready" not in st.session_state:
+    init_db()
+    st.session_state.db_ready = True
 
 # Theme Management
 if 'theme' not in st.session_state:
@@ -162,7 +163,9 @@ with st.sidebar:
                 status_text.text("Parsing & Indexing...")
                 try:
                     from resume_parser import process_all_resumes
-                    process_all_resumes(st.session_state.db_conn, resume_folder=temp_dir) 
+                    conn = get_db_connection()
+                    process_all_resumes(conn, resume_folder=temp_dir)
+                    conn.close()
                     progress_bar.progress(1.0)
                     st.success(f"Successfully processed {len(uploaded_files)} resumes!")
                     time.sleep(2)
@@ -216,7 +219,9 @@ if run_search:
     else:
         with st.spinner("🧠 Analyzing resumes and calculating compatibility scores..."):
             try:
-                results = find_matching_resumes_by_similarity(jd_input, st.session_state.db_conn, top_n)
+                conn = get_db_connection()
+                results = find_matching_resumes_by_similarity(jd_input, conn, top_n)
+                conn.close()
                 
                 if not results:
                     st.warning("No matches found. Try uploading some resumes first!")
